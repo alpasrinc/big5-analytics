@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# SQLite WAL-mode transient files — football.db itself is checkpointed and
+# committed, these are just the in-flight journal/shared-memory files.
+data/football.db-wal
+data/football.db-shm
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

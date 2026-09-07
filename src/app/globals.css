@@ -1,26 +1,124 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #0a0e14;
+  --surface: #10151f;
+  --surface-2: #161c29;
+  --border: #232a3a;
+  --border-soft: #1a2030;
+  --foreground: #e7ebf3;
+  --muted: #8892a6;
+  --muted-2: #5c6478;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --accent: #3987e5;
+  --accent-foreground: #051221;
+
+  /* status roles (fixed, never reused as a chart series color) */
+  --home: #0ca30c;
+  --draw: #fab219;
+  --away: #d03b3b;
+
+  /* categorical league slots, fixed order — same 5 hues everywhere a league is plotted */
+  --league-1: #3987e5;
+  --league-2: #d95926;
+  --league-3: #199e70;
+  --league-4: #c98500;
+  --league-5: #d55181;
+  --league-6: #008300;
+  --league-7: #9085e9;
+  --league-8: #e66767;
+  --league-9: #22b8cf;
+  --league-10: #f08c00;
+  --league-11: #f06595;
+
+  --corner: #3987e5;
+  --card-yellow: #fab219;
+  --card-red: #d03b3b;
+  --odds: #9085e9;
+
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-home: var(--home);
+  --color-draw: var(--draw);
+  --color-away: var(--away);
+  --color-league-1: var(--league-1);
+  --color-league-2: var(--league-2);
+  --color-league-3: var(--league-3);
+  --color-league-4: var(--league-4);
+  --color-league-5: var(--league-5);
+  --color-league-6: var(--league-6);
+  --color-league-7: var(--league-7);
+  --color-league-8: var(--league-8);
+  --color-league-9: var(--league-9);
+  --color-league-10: var(--league-10);
+  --color-league-11: var(--league-11);
+  --color-corner: var(--corner);
+  --color-card-yellow: var(--card-yellow);
+  --color-card-red: var(--card-red);
+  --color-odds: var(--odds);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(61, 220, 151, 0.06), transparent 45%),
+    radial-gradient(circle at 85% 0%, rgba(177, 140, 255, 0.06), transparent 40%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(61, 220, 151, 0.25);
+}
+
+/* Slim scrollbars for the dense table / sidebar views */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-2);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
 }
