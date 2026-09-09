@@ -1,13 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart3, Table2 } from "lucide-react";
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { BarChart3, Shuffle, Table2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { Dashboard } from "./dashboard";
 import { MatchesView } from "./matches-view";
+import { LiveOddsPanel } from "./live-odds-panel";
+import { SavedMatchesPanel } from "./saved-matches-panel";
 
-export function AppShell() {
+export function AppShell({
+  initialSearch,
+}: {
+  initialSearch?: Record<string, string | string[] | undefined>;
+}) {
   const [tab, setTab] = useState("matches");
+  const applyLiveOddsRef = useRef<((values: Record<string, number>) => void) | null>(null);
+  const clearOddsColumnsRef = useRef<((columns: string[]) => void) | null>(null);
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-dvh min-h-0 flex-col">
@@ -23,14 +32,30 @@ export function AppShell() {
             Premier League · LaLiga · Serie A · Bundesliga · Ligue 1 · Şampiyonlar Ligi — 2015/16&apos;dan günümüze
           </p>
         </div>
-        <TabsList>
-          <TabsTrigger value="matches" className="flex items-center gap-1.5">
-            <Table2 className="h-3.5 w-3.5" /> Maç Verileri
-          </TabsTrigger>
-          <TabsTrigger value="dashboard" className="flex items-center gap-1.5">
-            <BarChart3 className="h-3.5 w-3.5" /> Genel Bakış
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-3">
+          <SavedMatchesPanel
+            onApply={(values) => applyLiveOddsRef.current?.(values)}
+            onClear={(columns) => clearOddsColumnsRef.current?.(columns)}
+          />
+          <LiveOddsPanel
+            onApply={(values) => applyLiveOddsRef.current?.(values)}
+            onClear={(columns) => clearOddsColumnsRef.current?.(columns)}
+          />
+          <TabsList>
+            <TabsTrigger value="matches" className="flex items-center gap-1.5">
+              <Table2 className="h-3.5 w-3.5" /> Maç Verileri
+            </TabsTrigger>
+            <TabsTrigger value="dashboard" className="flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" /> Genel Bakış
+            </TabsTrigger>
+          </TabsList>
+          <Link
+            href="/h2h"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-sm text-foreground hover:border-muted-2 transition-colors"
+          >
+            <Shuffle className="h-3.5 w-3.5 text-muted" /> Karşılaştır
+          </Link>
+        </div>
       </header>
 
       <TabsContent
@@ -38,7 +63,11 @@ export function AppShell() {
         value="matches"
         className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
       >
-        <MatchesView />
+        <MatchesView
+          initialSearch={initialSearch}
+          applyLiveOddsRef={applyLiveOddsRef}
+          clearOddsColumnsRef={clearOddsColumnsRef}
+        />
       </TabsContent>
       <TabsContent
         forceMount

@@ -12,11 +12,17 @@ export interface MatchesAggregate {
   avg_corners: number | null;
   avg_cards: number | null;
   avg_goals: number | null;
-  avg_home_odds: number | null;
-  avg_draw_odds: number | null;
-  avg_away_odds: number | null;
-  top_score: { home: number; away: number; count: number } | null;
-  top_ht_ft: { ht: string; ft: string; count: number } | null;
+  count_h: number;
+  count_d: number;
+  count_a: number;
+  count_over25: number;
+  count_under25: number;
+  count_btts_yes: number;
+  count_btts_no: number;
+  top_scores: { home: number; away: number; count: number }[];
+  top_scores_ht: { home: number; away: number; count: number }[];
+  top_ht_fts: { ht: string; ft: string; count: number }[];
+  top_fav: { ht: string; ft: string; count: number }[];
 }
 
 export interface MatchesResponse {
@@ -81,4 +87,46 @@ export function filtersToSearchParams(f: FilterState): URLSearchParams {
   sp.set("page", String(f.page));
   sp.set("pageSize", String(f.pageSize));
   return sp;
+}
+
+// Reverse of filtersToSearchParams — lets the matches view initialize from
+// (and the URL bar reflect) the exact same query string sent to /api/matches,
+// so a filtered view is a shareable/bookmarkable/refresh-safe link.
+export function searchParamsToFilters(sp: URLSearchParams): FilterState {
+  const numeric: FilterState["numeric"] = {};
+  for (const [key, value] of sp.entries()) {
+    let col: string | null = null;
+    let kind: "min" | "max" | null = null;
+    if (key.startsWith("min_")) {
+      col = key.slice(4);
+      kind = "min";
+    } else if (key.startsWith("max_")) {
+      col = key.slice(4);
+      kind = "max";
+    }
+    if (!col || !kind) continue;
+    const range = numeric[col] ?? {};
+    const num = Number(value);
+    if (!Number.isNaN(num)) range[kind] = num;
+    numeric[col] = range;
+  }
+
+  const btts = sp.get("btts");
+  const dir = sp.get("dir");
+  return {
+    leagues: sp.getAll("league"),
+    seasons: sp.getAll("season"),
+    teams: sp.getAll("team"),
+    referees: sp.getAll("referee"),
+    result: sp.getAll("result"),
+    btts: btts === "yes" || btts === "no" ? btts : null,
+    q: sp.get("q") ?? "",
+    dateFrom: sp.get("date_from") ?? "",
+    dateTo: (sp.get("date_to") ?? "").replace("T23:59:59", ""),
+    numeric,
+    sort: sp.get("sort") || DEFAULT_FILTERS.sort,
+    dir: dir === "asc" ? "asc" : "desc",
+    page: Math.max(1, Number(sp.get("page")) || 1),
+    pageSize: Math.min(500, Math.max(1, Number(sp.get("pageSize")) || 25)),
+  };
 }

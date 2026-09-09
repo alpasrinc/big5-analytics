@@ -238,7 +238,7 @@ function parseFootiqoDate(s) {
 // folder: directory containing the 4 "Database - <Kind> - <League> - LS.xlsx"
 // files. leagueId/competitionType are assigned by us (Footiqo doesn't expose
 // a stable league id); country/league/season come from the files themselves.
-function loadFootiqoLeagueFolder(folder, { leagueId, competitionType, idOffset = 0 }) {
+function loadFootiqoLeagueFolder(folder, { leagueId, competitionType, idOffset = 0, leagueName }) {
   const files = fs.readdirSync(folder);
   const findFile = (kind) => {
     const f = files.find((f) => f.toLowerCase().includes(kind));
@@ -269,7 +269,7 @@ function loadFootiqoLeagueFolder(folder, { leagueId, competitionType, idOffset =
     start_datetime: parseFootiqoDate(m.matchDate),
     competition_type: competitionType,
     country: m.Country,
-    league: m.League,
+    league: leagueName || m.League,
     league_id: leagueId,
     season: m.Season,
     home_team_id: null,
@@ -443,16 +443,27 @@ const leagueFolders = [
   { dir: "Italy", leagueId: 3, competitionType: "Domestic Leagues" },
   { dir: "France", leagueId: 5, competitionType: "Domestic Leagues" },
   { dir: "Netherlands", leagueId: 11, competitionType: "Domestic Leagues" },
+  { dir: "Europe League", leagueId: 12, competitionType: "Continental Cup" },
+  { dir: "Conference League", leagueId: 13, competitionType: "Continental Cup" },
+  { dir: "Australia", leagueId: 14, competitionType: "Domestic Leagues" },
+  { dir: "Austria", leagueId: 15, competitionType: "Domestic Leagues", leagueName: "Austria Bundesliga" },
+  { dir: "Belgium", leagueId: 16, competitionType: "Domestic Leagues" },
+  { dir: "Croatia", leagueId: 17, competitionType: "Domestic Leagues" },
+  { dir: "Denmark", leagueId: 18, competitionType: "Domestic Leagues" },
+  { dir: "Greece", leagueId: 19, competitionType: "Domestic Leagues" },
+  { dir: "Portugal", leagueId: 20, competitionType: "Domestic Leagues" },
+  { dir: "Russia", leagueId: 21, competitionType: "Domestic Leagues", leagueName: "Russia Premier League" },
+  { dir: "Scotland", leagueId: 22, competitionType: "Domestic Leagues" },
 ];
 
 const extraRows = [];
-for (const { dir, leagueId, competitionType } of leagueFolders) {
+for (const { dir, leagueId, competitionType, leagueName } of leagueFolders) {
   const folder = path.join(sourceRoot, dir);
   if (!fs.existsSync(folder)) {
     console.warn(`Skipping missing folder: ${folder}`);
     continue;
   }
-  const candidate = loadFootiqoLeagueFolder(folder, { leagueId, competitionType });
+  const candidate = loadFootiqoLeagueFolder(folder, { leagueId, competitionType, leagueName });
   const { fresh, skipped } = dedupe(candidate);
   console.log(`${dir}: ${fresh.length} new rows, ${skipped} already present (skipped)`);
   extraRows.push(...fresh);

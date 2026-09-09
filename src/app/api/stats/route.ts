@@ -1,8 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
-export async function GET() {
+// Optional `?league=` scopes the histograms, team leaderboard, and odds
+// calibration to one league — powers the dashboard's league drill-down
+// (click a bar in the per-league comparison charts). The per-league
+// comparison itself always covers every league regardless of this filter.
+export async function GET(req: NextRequest) {
   const db = getDb();
+  const league = req.nextUrl.searchParams.get("league");
+  const leagueWhere = league ? `WHERE league = @league` : "";
+  const leagueWhereAnd = league ? `AND league = @league` : "";
+  const params = league ? { league } : {};
 
   const perLeague = db
     .prepare(
@@ -25,23 +33,23 @@ export async function GET() {
   const cornersHistogram = db
     .prepare(
       `SELECT total_corners_ft as bucket, COUNT(*) count FROM matches
-       WHERE total_corners_ft IS NOT NULL GROUP BY bucket ORDER BY bucket`
+       WHERE total_corners_ft IS NOT NULL ${leagueWhereAnd} GROUP BY bucket ORDER BY bucket`
     )
-    .all();
+    .all(params);
 
   const cardsHistogram = db
     .prepare(
       `SELECT total_yellow_cards_ft as bucket, COUNT(*) count FROM matches
-       WHERE total_yellow_cards_ft IS NOT NULL GROUP BY bucket ORDER BY bucket`
+       WHERE total_yellow_cards_ft IS NOT NULL ${leagueWhereAnd} GROUP BY bucket ORDER BY bucket`
     )
-    .all();
+    .all(params);
 
   const goalsHistogram = db
     .prepare(
       `SELECT total_goals_ft as bucket, COUNT(*) count FROM matches
-       WHERE total_goals_ft IS NOT NULL GROUP BY bucket ORDER BY bucket`
+       WHERE total_goals_ft IS NOT NULL ${leagueWhereAnd} GROUP BY bucket ORDER BY bucket`
     )
-    .all();
+    .all(params);
 
   // Team-level aggregation combining home + away appearances.
   const teamRows = db
@@ -51,16 +59,16 @@ export async function GET() {
               home_yellow_cards_ft as cards_for, away_yellow_cards_ft as cards_against,
               home_goals_ft as goals_for, away_goals_ft as goals_against,
               CASE result_ft WHEN 'H' THEN 3 WHEN 'D' THEN 1 ELSE 0 END as points
-       FROM matches
+       FROM matches ${leagueWhere}
        UNION ALL
        SELECT away_team as team, league,
               away_corners_ft, home_corners_ft,
               away_yellow_cards_ft, home_yellow_cards_ft,
               away_goals_ft, home_goals_ft,
               CASE result_ft WHEN 'A' THEN 3 WHEN 'D' THEN 1 ELSE 0 END
-       FROM matches`
+       FROM matches ${leagueWhere}`
     )
-    .all() as {
+    .all(params) as {
     team: string;
     league: string;
     corners_for: number;
@@ -109,9 +117,10 @@ export async function GET() {
   // odds and compare to the actual observed home-win frequency in that bucket.
   const oddsRows = db
     .prepare(
-      `SELECT home_win_closing_odds odds, result_ft FROM matches WHERE home_win_closing_odds IS NOT NULL`
+      `SELECT home_win_closing_odds odds, result_ft FROM matches
+       WHERE home_win_closing_odds IS NOT NULL ${leagueWhereAnd}`
     )
-    .all() as { odds: number; result_ft: string }[];
+    .all(params) as { odds: number; result_ft: string }[];
   const buckets = new Map<string, { implied: number; n: number; wins: number }>();
   for (const r of oddsRows) {
     const implied = 1 / r.odds;

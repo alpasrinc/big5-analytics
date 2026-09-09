@@ -113,25 +113,74 @@ and `src/lib/schema.ts` for the TS-side `Match` type). Key points:
 - `src/app/api/meta/route.ts` — leagues/teams/referees/seasons lookup; currently unused by
   the frontend (the team/season/referee filters were removed from the UI) but left in
   place since it's cheap and may come back.
+- `src/app/api/matches/export/route.ts` — CSV export of the *whole* filtered set (no
+  pagination), triggered by the "Dışa Aktar" link in `matches-view.tsx` (a plain `<a>` to
+  this endpoint with the current filters as a query string — the server's
+  `Content-Disposition: attachment` header does the actual download, no client JS needed).
+  Exports a fixed, curated column list (`EXPORT_COLUMNS`), not every DB column, and a UTF-8
+  BOM is prepended so Excel on Windows renders Turkish characters correctly. Both this route
+  and `/api/matches/route.ts` build their SQL from the same `buildMatchesFilter()` helper in
+  `src/lib/matches-query.ts` — extend that one function to add a new filter, not either route.
 - `src/components/matches-view.tsx` — owns filter state, debounces `/api/matches` calls,
-  owns the two column-visibility selections (persisted to localStorage).
+  owns the two column-visibility selections (persisted to localStorage). Filter state is
+  URL-synced: `src/app/page.tsx` is an async Server Component that reads `PageProps<'/'>`
+  `searchParams` and passes it down through `AppShell` as `initialSearch`, which
+  `searchParamsToFilters()` (`src/lib/api-types.ts`) turns into the initial `FilterState` —
+  this is what makes SSR hydration match (reading `localStorage`/URL only after mount would
+  mismatch). On every filter change the same debounced effect that calls `/api/matches` also
+  calls `window.history.replaceState` with `filtersToSearchParams(filters)` — `replaceState`,
+  not `pushState`, so tweaking filters doesn't spam browser back/forward history. A filtered
+  view's URL is therefore shareable/bookmarkable/refresh-safe; clearing all filters collapses
+  the URL back to the bare pathname.
 - `src/components/filters-left.tsx` / `filters-right.tsx` — the two filter sidebars.
   Left = league picker (Champions League standalone + countries grouped alphabetically,
   collapsible; multi-league countries get their own expand/collapse) + quick toggles
   (result, BTTS, goal/corner/card Alt-Üst line buttons). Right = every `NUMERIC_FIELDS`
   group as min/tam/max range inputs — "tam" (exact) writes min=max=value, except for
   fields with a `tolerance` (closing odds: writes value±tolerance, since odds rarely land
-  on the exact typed figure).
+  on the exact typed figure). Fields with a `mirrorCol` (MS1 ↔ MS2 only) also render a
+  "Tersini de hesapla" checkbox — when on, the range matches `col OR mirrorCol` (find
+  matches where *either* side closed near a price), built server-side in
+  `/api/matches/route.ts` as a per-column OR'd clause, not two separate AND'd ones.
 - `src/components/matches-table.tsx` — the table itself. Fixed columns (date, league,
   match, corners, cards) plus whatever's toggled on in the two column pickers. Row click
   opens `match-detail-dialog.tsx`. Has two independent "highlight most frequent
-  score/HT-FT" toggles that tint matching rows.
-- `src/components/dashboard.tsx` — the "Genel Bakış" tab's charts.
+  score/HT-FT" toggles that tint matching rows. The header bar shows 1/X/2, Ü2.5/A2.5 and
+  BTTS yes/no counts (computed server-side over the whole filtered set, not just the
+  page) next to "N maç bulundu", plus avg goals/corners/cards on the right.
+- `src/components/dashboard.tsx` — the "Genel Bakış" tab's charts. Clicking a bar in either
+  of the two per-league comparison charts (avg corners / avg cards) sets `selectedLeague`,
+  which is passed as `?league=` to `/api/stats` — this scopes the KPI row, histograms-backed
+  charts, odds calibration, and the team leaderboard to just that league (the two comparison
+  charts themselves always show every league; the clicked one is just highlighted). The team
+  leaderboard shows both for/against corner and card averages per team (`avg_*_for` /
+  `avg_*_against` from `/api/stats`), with sort buttons for each.
 - `src/components/column-picker.tsx` — generic popover reused for both odds and stat
   column pickers (`ODDS_MARKETS`/`STAT_MARKETS` passed in as props).
 - No page-level scroll anywhere in the app shell — the header and both sidebars are
   fixed; only the table body and the dashboard scroll internally. Keep it that way when
   adding UI; it was a deliberate fix for a "site feels cluttered" complaint.
+- `src/lib/team-summary.ts` — `getTeamSummary(team)`, a server-only DB helper (called
+  directly from the team page, not through an API route) returning overall/home/away
+  splits (for/against goals, corners, cards, BTTS%, 2.5 Üst%) plus the last 20 matches.
+  Home and away splits come from two separate SQL aggregate queries; `overall` is a
+  play-count-weighted average of the two rather than a third query.
+- `src/app/takim/[team]/page.tsx` — the team profile page (async Server Component,
+  `PageProps<'/takim/[team]'>`, team name is `decodeURIComponent`'d from the route segment).
+  Linked from team names in `matches-table.tsx` and the dashboard leaderboard
+  (`encodeURIComponent(team)` on the way in). `notFound()` if the team has zero matches.
+- `src/app/h2h/page.tsx` + `src/app/api/h2h/route.ts` — head-to-head comparison. The page
+  is a Client Component (needs `useSearchParams` for the `?team1=` prefill from a team
+  profile page's "Karşılaştır" link, so it's wrapped in `<Suspense>` as Next requires).
+  Team pickers are a `TeamSelect` wrapper around the existing (until now unused)
+  `MultiSelect` component, collapsed to single-select by diffing the before/after arrays.
+  `/api/meta`'s team list has one row per (team, league) — a team can appear more than
+  once (promoted/relegated between tiers, or alongside a Champions League entry) — so the
+  picker's options are deduped by team name before being handed to `MultiSelect`; skipping
+  that dedup produces duplicate React keys that silently break the picker's search filter
+  (found and fixed during development — see git history if this regresses). The API route
+  matches `(home=team1 AND away=team2) OR (home=team2 AND away=team1)` and computes the
+  win/draw/win split and averages server-side from the same row set.
 
 ## Conventions / things that bit us before
 

@@ -10,7 +10,13 @@
 // while `next dev` is running: better-sqlite3 in WAL mode allows one writer
 // alongside the app's readonly reader.
 //
-// Usage: node scripts/add-league.mjs "<folder>" <leagueId> [competitionType] [idOffset]
+// Usage: node scripts/add-league.mjs "<folder>" <leagueId> [competitionType] [idOffset] [leagueNameOverride]
+//
+// leagueNameOverride is needed when Footiqo's own League column value
+// collides with a league already in the db from a different country (e.g.
+// Austria's "Bundesliga" vs Germany's) — the `league` column value is what
+// the UI's LEAGUE_META keys off of, so two countries sharing a raw name
+// would merge into one filter button. Pass a disambiguated name in that case.
 import XLSX from "xlsx";
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -20,9 +26,11 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, "..", "data", "football.db");
 
-const [, , folderArg, leagueIdArg, competitionTypeArg, idOffsetArg] = process.argv;
+const [, , folderArg, leagueIdArg, competitionTypeArg, idOffsetArg, leagueNameOverride] = process.argv;
 if (!folderArg || !leagueIdArg) {
-  console.error('Usage: node scripts/add-league.mjs "<folder>" <leagueId> [competitionType] [idOffset]');
+  console.error(
+    'Usage: node scripts/add-league.mjs "<folder>" <leagueId> [competitionType] [idOffset] [leagueNameOverride]'
+  );
   process.exit(1);
 }
 const folder = path.resolve(folderArg);
@@ -69,7 +77,7 @@ const rows = scoresRows.map((m) => {
     start_datetime: parseFootiqoDate(m.matchDate),
     competition_type: competitionType,
     country: m.Country,
-    league: m.League,
+    league: leagueNameOverride || m.League,
     league_id: leagueId,
     season: m.Season,
     home_team_id: null,

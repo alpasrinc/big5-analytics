@@ -30,6 +30,17 @@
   --league-9: #22b8cf;
   --league-10: #f08c00;
   --league-11: #f06595;
+  --league-12: #b347d9;
+  --league-13: #92b234;
+  --league-14: #844dcb;
+  --league-15: #c322a0;
+  --league-16: #815731;
+  --league-17: #90c270;
+  --league-18: #2e9e95;
+  --league-19: #d9ca26;
+  --league-20: #394dac;
+  --league-21: #2a6f41;
+  --league-22: #5986a6;
 
   --corner: #3987e5;
   --card-yellow: #fab219;
@@ -68,6 +79,17 @@
   --color-league-9: var(--league-9);
   --color-league-10: var(--league-10);
   --color-league-11: var(--league-11);
+  --color-league-12: var(--league-12);
+  --color-league-13: var(--league-13);
+  --color-league-14: var(--league-14);
+  --color-league-15: var(--league-15);
+  --color-league-16: var(--league-16);
+  --color-league-17: var(--league-17);
+  --color-league-18: var(--league-18);
+  --color-league-19: var(--league-19);
+  --color-league-20: var(--league-20);
+  --color-league-21: var(--league-21);
+  --color-league-22: var(--league-22);
   --color-corner: var(--corner);
   --color-card-yellow: var(--card-yellow);
   --color-card-red: var(--card-red);

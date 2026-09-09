@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ListFilter, X } from "lucide-react";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
-import { NUMERIC_FIELDS } from "@/lib/schema";
+import { exactValueFromRange, NUMERIC_FIELDS } from "@/lib/schema";
 import type { NumericField } from "@/lib/schema";
 import type { FilterState } from "@/lib/api-types";
 
@@ -60,6 +60,32 @@ export function FiltersRight({
     onChange({ ...filters, numeric: next, page: 1 });
   };
 
+  // Lets pasting several odds copied side-by-side off a betting site (e.g.
+  // "1.85  3.40  4.20") into one "tam" box fan them out across it and the
+  // following fields in the same group (1 -> MS1, X -> MSX, 2 -> MS2) instead
+  // of dumping the whole clipboard string into a single input. A single
+  // pasted number falls through to the browser's normal paste.
+  const handleTamPaste = (
+    e: React.ClipboardEvent<HTMLInputElement>,
+    fields: NumericField[],
+    startIndex: number
+  ) => {
+    const tokens = e.clipboardData.getData("text").match(/-?\d+(?:[.,]\d+)?/g);
+    if (!tokens || tokens.length < 2) return;
+    e.preventDefault();
+    const next = { ...filters.numeric };
+    tokens.forEach((tok, i) => {
+      const field = fields[startIndex + i];
+      if (!field) return;
+      const num = Number(tok.replace(",", "."));
+      if (Number.isNaN(num)) return;
+      next[field.col] = field.tolerance
+        ? { min: round2(num - field.tolerance), max: round2(num + field.tolerance) }
+        : { min: num, max: num };
+    });
+    onChange({ ...filters, numeric: next, page: 1 });
+  };
+
   const numericCount = Object.keys(filters.numeric).length;
 
   return (
@@ -107,16 +133,7 @@ export function FiltersRight({
               <div className="flex flex-col gap-3 px-3 pb-3">
                 {fields.map((f) => {
                   const range = filters.numeric[f.col];
-                  let exactValue: number | "" = "";
-                  if (range && range.min !== undefined && range.max !== undefined) {
-                    if (f.tolerance) {
-                      if (round2(range.max - range.min) === round2(f.tolerance * 2)) {
-                        exactValue = round2(range.min + f.tolerance);
-                      }
-                    } else if (range.min === range.max) {
-                      exactValue = range.min;
-                    }
-                  }
+                  const exactValue = exactValueFromRange(f, range) ?? "";
                   return (
                     <div key={f.col}>
                       <p className="mb-1 text-[11px] text-muted">{f.label}</p>
@@ -135,9 +152,12 @@ export function FiltersRight({
                           placeholder="tam"
                           value={exactValue}
                           onChange={(e) => setExact(f, e.target.value)}
+                          onPaste={(e) => handleTamPaste(e, fields, fields.indexOf(f))}
                           title={
                             f.tolerance
-                              ? `Girilen değerin ±${f.tolerance} aralığını gösterir (örn. 1.50 → 1.45–1.55)`
+                              ? `Girilen değerin ±${f.tolerance} aralığını gösterir (örn. 1.50 → 1.45–1.55). Yan yana birden fazla oran yapıştırırsan bu ve sonraki kutulara sırayla dağıtılır.${
+                                  f.mirrorCol ? " Hangi taraf kapandığına bakılmaksızın tersi de otomatik hesaplanır." : ""
+                                }`
                               : "Tam eşleşen değer (min ve max'ı aynı anda ayarlar)"
                           }
                           className="h-7 min-w-0 px-1.5 text-xs text-accent placeholder:text-accent/50"

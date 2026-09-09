@@ -44,8 +44,13 @@ export function FiltersLeft({
     set("leagues", active ? filters.leagues.filter((l) => l !== name) : [...filters.leagues, name]);
   };
 
-  // Champions League stands alone (no country); every other league groups
-  // under its country, sorted alphabetically by Turkish country name.
+  // Leagues with no country (continental cups) stand alone; every other
+  // league groups under its country, sorted alphabetically by Turkish name.
+  const standaloneLeagues = useMemo(
+    () => Object.keys(LEAGUE_META).filter((league) => LEAGUE_META[league].country === null),
+    []
+  );
+
   const countryGroups = useMemo(() => {
     const groups = new Map<string, string[]>();
     for (const [league, m] of Object.entries(LEAGUE_META)) {
@@ -122,11 +127,14 @@ export function FiltersLeft({
         </button>
         {ligOpen && (
           <div className="flex flex-col gap-1">
-            <LeagueRow
-              name="Champions League"
-              active={filters.leagues.includes("Champions League")}
-              onClick={() => toggleLeague("Champions League")}
-            />
+            {standaloneLeagues.map((name) => (
+              <LeagueRow
+                key={name}
+                name={name}
+                active={filters.leagues.includes(name)}
+                onClick={() => toggleLeague(name)}
+              />
+            ))}
 
             {countryGroups.map(([country, leagues]) => {
               if (leagues.length === 1) {

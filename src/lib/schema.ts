@@ -14,6 +14,17 @@ export const LEAGUES = [
   "LaLiga2",
   "2. Bundesliga",
   "Eredivisie",
+  "Europa League",
+  "Conference League",
+  "A-League",
+  "Austria Bundesliga",
+  "Jupiler Pro League",
+  "HNL",
+  "Superliga",
+  "Super League",
+  "Liga Portugal",
+  "Russia Premier League",
+  "Premiership",
 ] as const;
 
 export type League = (typeof LEAGUES)[number];
@@ -28,6 +39,10 @@ export interface NumericField {
   // to min/max instead of value===value — closing odds rarely land on the
   // exact figure typed, so a small band around it is far more useful.
   tolerance?: number;
+  // When set, this field's min/max always matches against EITHER this
+  // column OR mirrorCol (e.g. MS1's mirror is MS2 — "find matches where
+  // either side closed at ~1.80"), not just the column typed into.
+  mirrorCol?: string;
 }
 
 export const NUMERIC_FIELDS: NumericField[] = [
@@ -59,9 +74,9 @@ export const NUMERIC_FIELDS: NumericField[] = [
   { col: "away_fouls_ft", label: "Deplasman Faul", group: "Diğer İstatistikler" },
   // Odds — "tam" applies a ±0.05 band (see NumericField.tolerance) since
   // closing odds almost never land on the exact typed figure.
-  { col: "home_win_closing_odds", label: "MS 1 Kapanış Oranı", group: "Kapanış Oranları (1X2)", step: 0.01, tolerance: 0.05 },
+  { col: "home_win_closing_odds", label: "MS 1 Kapanış Oranı", group: "Kapanış Oranları (1X2)", step: 0.01, tolerance: 0.05, mirrorCol: "away_win_closing_odds" },
   { col: "draw_closing_odds", label: "MS X Kapanış Oranı", group: "Kapanış Oranları (1X2)", step: 0.01, tolerance: 0.05 },
-  { col: "away_win_closing_odds", label: "MS 2 Kapanış Oranı", group: "Kapanış Oranları (1X2)", step: 0.01, tolerance: 0.05 },
+  { col: "away_win_closing_odds", label: "MS 2 Kapanış Oranı", group: "Kapanış Oranları (1X2)", step: 0.01, tolerance: 0.05, mirrorCol: "home_win_closing_odds" },
   { col: "over_2_5_goals_closing_odds", label: "2.5 Üst Kapanış Oranı", group: "Kapanış Oranları (Gol)", step: 0.01, tolerance: 0.05 },
   { col: "under_2_5_goals_closing_odds", label: "2.5 Alt Kapanış Oranı", group: "Kapanış Oranları (Gol)", step: 0.01, tolerance: 0.05 },
   { col: "btts_yes_closing_odds", label: "KG Var Kapanış Oranı", group: "Kapanış Oranları (Gol)", step: 0.01, tolerance: 0.05 },
@@ -73,6 +88,50 @@ export const NUMERIC_FIELDS: NumericField[] = [
 ];
 
 export const NUMERIC_COLS = new Set(NUMERIC_FIELDS.map((f) => f.col));
+
+// col -> its mirrorCol, derived from NUMERIC_FIELDS so the API route and the
+// frontend never have to keep a second copy of the same pairing in sync.
+export const MIRROR_COLS: Record<string, string> = Object.fromEntries(
+  NUMERIC_FIELDS.filter((f) => f.mirrorCol).map((f) => [f.col, f.mirrorCol as string])
+);
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// Writes a single "exact" value into a numeric filter map the same way the
+// right-side filter panel's "tam" box does: value±tolerance for fields that
+// have one (closing odds rarely land on the exact figure typed), literal
+// min=max otherwise. Shared so other entry points (e.g. the live-odds panel
+// pasting in a fetched price) get identical behavior without duplicating it.
+export function applyExactToNumeric(
+  numeric: Record<string, { min?: number; max?: number }>,
+  col: string,
+  value: number
+): Record<string, { min?: number; max?: number }> {
+  const field = NUMERIC_FIELDS.find((f) => f.col === col);
+  const next = { ...numeric };
+  next[col] = field?.tolerance
+    ? { ...next[col], min: round2(value - field.tolerance), max: round2(value + field.tolerance) }
+    : { ...next[col], min: value, max: value };
+  return next;
+}
+
+// Reverse of applyExactToNumeric: recovers the single "tam" value the user
+// typed from a min/max range, if that range still has that exact shape
+// (value±tolerance, or literal min=max) — undefined the moment either side
+// gets edited into a different range. Shared by the "tam" box's own display
+// and the table's exact-odds-match highlighting.
+export function exactValueFromRange(
+  field: Pick<NumericField, "tolerance">,
+  range: { min?: number; max?: number } | undefined
+): number | undefined {
+  if (!range || range.min === undefined || range.max === undefined) return undefined;
+  if (field.tolerance) {
+    return round2(range.max - range.min) === round2(field.tolerance * 2)
+      ? round2(range.min + field.tolerance)
+      : undefined;
+  }
+  return range.min === range.max ? range.min : undefined;
+}
 
 // Extra numeric columns that exist in the DB and are safe to sort/filter on
 // via generic min_/max_ query params, even if not surfaced as quick-filter sliders.

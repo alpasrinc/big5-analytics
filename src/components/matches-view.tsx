@@ -1,18 +1,37 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import type { MutableRefObject } from "react";
+import { Search, Download } from "lucide-react";
 import { FiltersLeft } from "./filters-left";
 import { FiltersRight } from "./filters-right";
 import { MatchesTable } from "./matches-table";
 import { MatchDetailDialog } from "./match-detail-dialog";
 import { ColumnPicker } from "./column-picker";
 import { Input } from "./ui/input";
-import { DEFAULT_VISIBLE_MARKETS, DEFAULT_VISIBLE_STATS, ODDS_MARKETS, STAT_MARKETS } from "@/lib/schema";
+import {
+  applyExactToNumeric,
+  DEFAULT_VISIBLE_MARKETS,
+  DEFAULT_VISIBLE_STATS,
+  ODDS_MARKETS,
+  STAT_MARKETS,
+} from "@/lib/schema";
 import type { Match } from "@/lib/schema";
 import type { FilterState, MatchesResponse } from "@/lib/api-types";
-import { filtersToSearchParams } from "@/lib/api-types";
+import { filtersToSearchParams, searchParamsToFilters } from "@/lib/api-types";
 import { DEFAULT_FILTERS } from "@/lib/api-types";
+
+// Next passes searchParams as string | string[] | undefined per key; flatten
+// back into the plain URLSearchParams our filter (de)serializers expect.
+function toURLSearchParams(sp: Record<string, string | string[] | undefined>) {
+  const out = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) value.forEach((v) => out.append(key, v));
+    else out.append(key, value);
+  }
+  return out;
+}
 
 // Persists a column-visibility selection (list of market ids) to
 // localStorage under `key`, restoring it once on mount (client-only, to
@@ -46,8 +65,25 @@ function usePersistedColumns(key: string, defaultValue: string[]) {
   return [ids, change] as const;
 }
 
-export function MatchesView() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+export function MatchesView({
+  initialSearch,
+  applyLiveOddsRef,
+  clearOddsColumnsRef,
+}: {
+  initialSearch?: Record<string, string | string[] | undefined>;
+  // Lets the header's live-odds panels (siblings outside this component's
+  // tree) push fetched prices into the numeric filters without lifting the
+  // whole filter state up to AppShell — set once here, called from there.
+  applyLiveOddsRef?: MutableRefObject<((values: Record<string, number>) => void) | null>;
+  // Same wiring, for switching a market toggle back off: unsets the given
+  // numeric filter columns instead of setting them.
+  clearOddsColumnsRef?: MutableRefObject<((columns: string[]) => void) | null>;
+}) {
+  const [filters, setFilters] = useState<FilterState>(() =>
+    initialSearch && Object.keys(initialSearch).length
+      ? searchParamsToFilters(toURLSearchParams(initialSearch))
+      : DEFAULT_FILTERS
+  );
   const [result, setResult] = useState<MatchesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Match | null>(null);
@@ -66,10 +102,46 @@ export function MatchesView() {
     setFilters(f);
   };
 
+  // Applies a { column: value } map (e.g. from a fetched live-odds average)
+  // as "tam" bands on top of whatever numeric filters are already set.
+  const applyLiveOdds = (values: Record<string, number>) => {
+    setLoading(true);
+    setFilters((prev) => {
+      let numeric = prev.numeric;
+      for (const [col, value] of Object.entries(values)) {
+        numeric = applyExactToNumeric(numeric, col, value);
+      }
+      return { ...prev, numeric, page: 1 };
+    });
+  };
+
+  // Unsets the given numeric filter columns — the other half of a market
+  // toggle: switching it back off should clear exactly what applying it set.
+  const clearOddsColumns = (columns: string[]) => {
+    setLoading(true);
+    setFilters((prev) => {
+      const numeric = { ...prev.numeric };
+      for (const col of columns) delete numeric[col];
+      return { ...prev, numeric, page: 1 };
+    });
+  };
+
+  useEffect(() => {
+    if (applyLiveOddsRef) applyLiveOddsRef.current = applyLiveOdds;
+    if (clearOddsColumnsRef) clearOddsColumnsRef.current = clearOddsColumns;
+  });
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const sp = filtersToSearchParams(filters);
+      // Shallow URL sync (no Next router transition) so the current filter
+      // set is shareable and survives a refresh, without spamming browser
+      // history — replaceState, not pushState, on every change.
+      const isDefault = JSON.stringify(filters) === JSON.stringify(DEFAULT_FILTERS);
+      const nextUrl = isDefault ? window.location.pathname : `${window.location.pathname}?${sp.toString()}`;
+      window.history.replaceState(null, "", nextUrl);
+
       fetch(`/api/matches?${sp.toString()}`)
         .then((r) => r.json())
         .then((data: MatchesResponse) => {
@@ -111,6 +183,14 @@ export function MatchesView() {
             visible={visibleMarkets}
             onChange={changeVisibleMarkets}
           />
+          <a
+            href={`/api/matches/export?${filtersToSearchParams(filters).toString()}`}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-sm text-foreground hover:border-muted-2 transition-colors"
+            title="Filtrelenmiş maçları CSV olarak indir"
+          >
+            <Download className="h-3.5 w-3.5 text-muted" />
+            Dışa Aktar
+          </a>
         </div>
         <MatchesTable
           rows={result?.rows ?? []}

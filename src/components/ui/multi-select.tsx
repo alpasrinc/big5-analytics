@@ -19,6 +19,7 @@ export function MultiSelect({
   placeholder = "Seçin",
   searchable = true,
   className,
+  triggerLabel,
 }: {
   options: MultiSelectOption[];
   selected: string[];
@@ -26,6 +27,9 @@ export function MultiSelect({
   placeholder?: string;
   searchable?: boolean;
   className?: string;
+  // Overrides the default "N seçili" trigger text — e.g. a single-select
+  // wrapper showing the picked option's own label instead of a count.
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -52,7 +56,7 @@ export function MultiSelect({
           )}
         >
           <span className={cn("truncate text-left", !selected.length && "text-muted-2")}>
-            {selected.length ? `${selected.length} seçili` : placeholder}
+            {selected.length ? (triggerLabel ?? `${selected.length} seçili`) : placeholder}
           </span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted" />
         </button>
